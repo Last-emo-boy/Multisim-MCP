@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "multisim-mcp"
+version = "0.1.0"
+description = "MCP Server for NI Multisim Automation API"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "pywin32>=306",
+    "pydantic>=2.0",
+]
+
+[project.scripts]
+multisim-mcp = "multisim_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/multisim_mcp"]

@@ -1,0 +1,31 @@
+* Inverting Amplifier - Based on circuit 2-1.ms14
+*
+* Topology: Vi -> R1 -> [inv input] -> RF -> [output]
+* Non-inverting input through Rp to ground
+* Theoretical gain: Av = -RF/R1 = -100k/10k = -10
+*
+* Simple op-amp macromodel (ideal with finite gain)
+.subckt OPAMP 1 2 99
+* 1=noninv(+), 2=inv(-), 99=output
+Ri 1 2 2e6
+E1 3 0 1 2 200000
+Ro 3 99 75
+.ends OPAMP
+*
+* Power supplies
+VCC vcc 0 DC 15
+VEE vee 0 DC -15
+*
+* Input source - swept by .dc command
+Vi ui 0 DC 0
+*
+* Resistors
+R1 ui inv 10k
+RF inv out 100k
+RL out 0 10k
+Rp noninv 0 10k
+*
+* Op-amp subcircuit instance
+XU1 noninv inv out OPAMP
+*
+.end
