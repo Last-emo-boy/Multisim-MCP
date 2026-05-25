@@ -1,166 +1,213 @@
 # Multisim MCP Server
 
-NI Multisim 自动化 API 的 MCP (Model Context Protocol) 服务端，允许 AI Agent 和大模型直接操控本地 Multisim 进行电路仿真与设计迭代。
+NI Multisim Automation API 的 MCP（Model Context Protocol）服务端。它让支持 MCP 的 AI Agent 通过本地 stdio server 控制 Multisim，完成电路打开、枚举、修改、仿真、SPICE 分析、波形测量和报告生成。
+
+当前版本是 `0.1.0`，定位为 alpha。核心能力可安装和测试；连接真实 Multisim 的工具需要 Windows + NI Multisim 环境。
+
+## 功能概览
+
+- 61 个 MCP tools，覆盖会话、文件、元件枚举、电路修改、仿真控制、输出采集、SPICE 分析、虚拟仪器、报告生成和设计规则检查。
+- 7 个 MCP prompts，提供电路分析、SPICE 分析、参数扫描、故障排查、报告导出和实验报告工作流。
+- 同时支持 `.ms14` / `.ms8+` 设计文件和直接从 SPICE netlist / 内置模板运行分析。
+- 提供纯 Python 工具：netlist builder、template library、design rule checker、signal measurement，可在没有 Multisim 的环境下单元测试。
 
 ## 系统要求
 
-- Windows 10/11
-- NI Multisim 14.x 已安装并激活
-- Python ≥ 3.10
-- pywin32 (COM 支持)
+- Windows 10/11。
+- NI Multisim 14.x，已安装并激活 COM Automation API。
+- Python 3.10 或更高版本。
+- `pywin32`。如果你的 Multisim COM 组件是 32-bit，请使用 32-bit Python 环境运行 server。
+
+报告、绘图和 schematic rendering 功能需要额外安装 `report` extras，见安装章节。
 
 ## 安装
 
-```bash
-cd "Multisim MCP"
-pip install -e .
+从源码安装：
+
+```powershell
+python -m pip install .
 ```
 
-## 使用
+开发安装：
 
-### 作为 MCP Server 运行 (stdio)
+```powershell
+python -m pip install -e ".[dev]"
+```
 
-```bash
+包含绘图和报告能力：
+
+```powershell
+python -m pip install -e ".[dev,report]"
+```
+
+启动 MCP server：
+
+```powershell
 multisim-mcp
 ```
 
-### VS Code / Claude Desktop 配置
+也可以直接通过模块运行：
 
-在 `claude_desktop_config.json` 或 `.vscode/mcp.json` 中添加：
+```powershell
+python -m multisim_mcp.server
+```
+
+## MCP 客户端配置
+
+Claude Desktop / 通用 MCP 配置：
 
 ```json
 {
   "mcpServers": {
     "multisim": {
       "command": "multisim-mcp",
-      "args": [],
-      "env": {}
+      "args": []
     }
   }
 }
 ```
 
-或使用 Python 直接运行：
+VS Code `.vscode/mcp.json`：
 
 ```json
 {
-  "mcpServers": {
-    "multisim": {
-      "command": "python",
-      "args": ["-m", "multisim_mcp.server"],
-      "env": {}
+  "servers": {
+    "multisimMcp": {
+      "type": "stdio",
+      "command": "multisim-mcp",
+      "dev": {
+        "watch": "src/**/*.py"
+      }
     }
   }
 }
 ```
 
-## 工具列表 (30 Tools)
+## 工具分类
 
-### 会话与文件 (8)
-| 工具 | 描述 |
-|------|------|
-| `connect` | 连接到本地 Multisim 实例 |
-| `disconnect` | 断开并终止 Multisim |
-| `open_design` | 打开 .ms14 设计文件 |
-| `open_netlist` | 打开 SPICE netlist 文件 |
-| `save_design` | 保存当前电路 |
-| `save_design_as` | 另存为新文件 |
-| `export_circuit_image` | 导出电路截图 (PNG/JPG/BMP) |
-| `get_session_state` | 获取当前会话状态 |
+| 分类 | 代表工具 | 用途 |
+| --- | --- | --- |
+| Session | `connect`、`disconnect`、`get_session_state` | 启动、关闭和检查 Multisim 会话 |
+| File | `open_design`、`open_netlist`、`save_design_as`、`export_circuit_image` | 打开、保存和导出设计 |
+| Enumerate | `list_components`、`list_inputs`、`list_outputs`、`list_variants`、`list_circuit_parameters` | 发现 RefDes、probe、input 和参数名 |
+| Modify | `set_rlc_value`、`set_circuit_parameter_value`、`replace_component`、`set_input_data_sampled` | 修改电路或输入波形 |
+| Simulate | `run_simulation`、`run_transient`、`run_ac_sweep`、`run_dc_operating_point` | 控制仿真和执行常见分析 |
+| Output | `set_output_request`、`is_output_ready`、`get_output_data`、`summarize_output` | 采集和汇总仿真输出 |
+| SPICE | `run_spice`、`parameter_sweep`、`run_command_line` | 以内联 netlist 和 nutmeg commands 运行 SPICE |
+| Instruments | `function_generator`、`oscilloscope`、`plot_waveform` | 虚拟函数发生器、示波器和独立波形绘图 |
+| Templates | `list_circuit_templates`、`get_circuit_template`、`materialize_design_template` | 生成常见电路的可运行 netlist |
+| Builder / Catalog | `build_netlist`、`search_component_catalog`、`list_component_categories` | 程序化构建电路和搜索 Multisim 元件 |
+| Verification | `check_design_rules`、`simulate_block`、`simulate_pipeline`、`measure_signals` | 设计规则检查、分块仿真和信号测量 |
+| Reports | `simulation_report`、`render_netlist_schematic`、`generate_markdown_report` | 生成 HTML / Markdown 报告和 schematic 图片 |
 
-### 枚举与报告 (7)
-| 工具 | 描述 |
-|------|------|
-| `list_components` | 列出所有元件及其值 |
-| `list_inputs` | 列出可用输入源 |
-| `list_outputs` | 列出可用输出探针 |
-| `list_sections` | 列出多 section 元件的子部分 |
-| `list_variants` | 列出设计变体 |
-| `export_netlist` | 导出 netlist |
-| `export_bom` | 导出 BOM |
+## 推荐工作流
 
-### 电路修改 (5)
-| 工具 | 描述 |
-|------|------|
-| `set_rlc_value` | 修改 R/L/C 元件值 |
-| `replace_component` | 替换兼容器件 |
-| `set_input_data_raw` | 注入任意波形数据 |
-| `set_input_data_sampled` | 注入等间隔采样数据 |
-| `clear_input` | 清除输入数据 |
+打开现有 Multisim 设计并做瞬态分析：
 
-### 仿真与分析 (7)
-| 工具 | 描述 |
-|------|------|
-| `run_simulation` | 启动仿真 |
-| `pause_simulation` | 暂停仿真 |
-| `resume_simulation` | 恢复仿真 |
-| `stop_simulation` | 停止仿真 |
-| `run_ac_sweep` | AC 频扫分析 |
-| `run_dc_operating_point` | DC 工作点分析 |
-| `run_transient` | 瞬态分析 |
-
-### 输出读取 (5+)
-| 工具 | 描述 |
-|------|------|
-| `set_output_request` | 配置输出采集请求 |
-| `clear_output_request` | 清除输出请求 |
-| `is_output_ready` | 检查输出数据是否就绪 |
-| `get_output_data` | 获取仿真输出数据 |
-| `summarize_output` | 自动计算输出摘要指标 |
-| `run_until_next_output` | 运行到下一个输出块就绪 |
-| `run_command_line` | 直接执行 SPICE 命令 (专家模式) |
-
-## 典型工作流
-
-### 1. 打开已有设计并调参
-
-```
-connect → open_design("amp.ms14") → list_components → set_rlc_value("R1", 2000)
-→ list_outputs → run_ac_sweep(outputs, ...) → get_output_data → summarize_output
+```text
+connect
+open_design("C:/path/to/design.ms14")
+list_outputs
+run_transient(output_names=["V(out)"], stop_time=0.01, sample_rate=10000)
+get_output_data("V(out)")
+summarize_output("V(out)")
 ```
 
-### 2. 器件替换比较
+使用内置模板直接跑 SPICE：
 
-```
-connect → open_design → replace_component("D1", group="Diodes", family="DIODE", name="1N5712")
-→ list_outputs → run_transient → get_output_data → summarize_output
-```
-
-### 3. 注入自定义波形
-
-```
-connect → open_design → list_inputs → set_input_data_sampled("V1", 10000, [...])
-→ set_output_request("V(out)", ...) → run_simulation → get_output_data
+```text
+connect
+get_circuit_template("inverting_amp", analysis="tran", overrides={"R1": 10000, "Rf": 100000})
+run_spice(netlist=<returned netlist>, commands=<returned commands>)
+measure_signals(signals=[...], gain_pairs=[{"input": "$in", "output": "$out"}])
 ```
 
-## 架构
+程序化构建 netlist：
 
-```
-AI Agent / MCP Client
-       ↓
-Multisim MCP Server (stdio)
-  ├─ server.py          ← MCP tool registration
-  ├─ session.py         ← Session state & audit log
-  ├─ com_adapter.py     ← COM API wrapper
-  ├─ models.py          ← Pydantic schemas
-  └─ tools/
-      ├─ file_tools.py       ← 文件/会话操作
-      ├─ enum_tools.py       ← 枚举/报告
-      ├─ modify_tools.py     ← 电路修改
-      ├─ simulation_tools.py ← 仿真控制
-      └─ output_tools.py     ← 输出读取
-       ↓
-NI Multisim (COM Automation API)
+```text
+build_netlist(
+  title="Voltage divider",
+  components=[
+    {"type": "V", "refdes": "V1", "nplus": "in", "nminus": "0", "value": "DC 5"},
+    {"type": "R", "refdes": "R1", "n1": "in", "n2": "out", "value": 10000},
+    {"type": "R", "refdes": "R2", "n1": "out", "n2": "0", "value": 10000}
+  ],
+  output_nodes=["out"]
+)
+check_design_rules(netlist=<returned netlist>)
+run_spice(netlist=<returned netlist>, commands=<returned commands>)
 ```
 
-## 安全设计
+## 使用规则
 
-1. **自动快照**：每次结构修改前自动备份原文件
-2. **审计日志**：所有操作记录到 `~/.multisim_mcp/audit_log.json`
-3. **默认 SaveAs**：避免覆盖原始设计文件
-4. **仿真状态检查**：修改前自动确认仿真已停止
-5. **同类替换约束**：首版仅允许同类器件替换
+- 先调用 `connect`，再调用其他依赖 Multisim 的工具。
+- 操作 `.ms14` 设计前先调用 `open_design`；操作 netlist 文件前先调用 `open_netlist` 或使用 `run_spice`。
+- 修改元件前确保仿真已停止，必要时先调用 `stop_simulation`。
+- 引用 probe、input、RefDes 或 circuit parameter 前，先调用对应的 `list_*` 工具枚举真实名称。
+- R/L/C 值使用 SI 基本单位：`1kΩ = 1000`，`10nF = 1e-8`，`4.7uH = 4.7e-6`。
+- `run_spice` 中 node voltage 使用 `$` 前缀，例如 `print $out $in`。
 
-## 许可
+## 项目结构
 
-ISC
+```text
+src/multisim_mcp/
+  server.py              MCP tool 和 prompt 注册入口
+  com_adapter.py         Multisim COM Automation API wrapper
+  session.py             会话状态、snapshot 和 audit log
+  models.py              Pydantic response model
+  tools/
+    file_tools.py        会话和文件操作
+    enum_tools.py        元件、输入、输出、参数枚举
+    modify_tools.py      电路修改
+    simulation_tools.py  仿真控制和常见分析
+    output_tools.py      输出采集和摘要
+    spice_tools.py       run_spice 和 parameter_sweep
+    instrument_tools.py  function generator、oscilloscope、plot_waveform
+    report_tools.py      HTML 报告
+    circuit_templates.py 内置电路模板
+    netlist_builder.py   程序化 netlist 构建
+    design_checks.py     netlist 设计规则检查
+    signal_measure.py    波形测量
+```
+
+## 开发与验证
+
+运行单元测试：
+
+```powershell
+python -m pytest
+```
+
+构建发布包：
+
+```powershell
+python -m build
+```
+
+检查发布包元数据：
+
+```powershell
+python -m twine check dist/*
+```
+
+当前测试覆盖不依赖 Multisim 的核心纯 Python 工具。COM 自动化路径需要在安装了 NI Multisim 的 Windows 环境中做集成验证。
+
+## 发布清单
+
+发布前建议确认：
+
+- `python -m pytest` 通过。
+- `python -m build` 通过。
+- `python -m twine check dist/*` 通过。
+- 在目标 Windows 环境中运行 `multisim-mcp`，并用 MCP client 调用 `connect`。
+- 使用一个真实 `.ms14` 文件验证 `open_design`、`list_outputs`、`run_transient` 和 `get_output_data`。
+
+## 安全和数据
+
+- 结构修改前会通过 session manager 创建 snapshot。
+- 操作会写入 audit log，默认位置是 `~/.multisim_mcp/audit_log.json`。
+- 推荐优先使用 `save_design_as`，避免覆盖原始设计文件。
+
+## 许可证
+
+ISC。详见 [LICENSE](LICENSE)。

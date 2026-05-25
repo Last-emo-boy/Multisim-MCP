@@ -2,7 +2,7 @@
   "servers": {
     "multisimMcp": {
       "type": "stdio",
-      "command": "${workspaceFolder}/.venv32/Scripts/multisim-mcp.exe",
+      "command": "multisim-mcp",
       "dev": {
         "watch": "src/**/*.py"
       }

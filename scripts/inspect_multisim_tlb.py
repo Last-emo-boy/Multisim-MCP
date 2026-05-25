@@ -1,4 +1,4 @@
-"""Extract method signatures from Multisim COM type library."""
+"""Extract selected method signatures from the Multisim COM type library."""
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 

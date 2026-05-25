@@ -6,15 +6,76 @@ build-backend = "hatchling.build"
 name = "multisim-mcp"
 version = "0.1.0"
 description = "MCP Server for NI Multisim Automation API"
+readme = "README.md"
+license = "ISC"
 requires-python = ">=3.10"
+authors = [
+    { name = "Multisim MCP contributors" },
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "multisim",
+    "spice",
+    "circuit-simulation",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: ISC License (ISCL)",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
 dependencies = [
     "mcp[cli]>=1.0.0",
-    "pywin32>=306",
+    "pywin32>=306; platform_system == 'Windows'",
     "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+report = [
+    "matplotlib>=3.7",
+    "pillow>=10.0",
+]
+dev = [
+    "build>=1.2",
+    "pytest>=8.0",
+    "twine>=5.0",
 ]
 
 [project.scripts]
 multisim-mcp = "multisim_mcp.server:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/scripts",
+    "/sim",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+exclude = [
+    "/.venv*",
+    "/.workflow",
+    "/report_output",
+    "**/__pycache__",
+    "**/*.pyc",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/multisim_mcp"]
